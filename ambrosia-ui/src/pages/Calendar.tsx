@@ -1,26 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchWeekDoseEvents } from '../mocks/schedule'
+import { fetchRangeDoseEvents } from '../mocks/schedule'
 import type { DoseEvent } from '../types/schedule'
-import { useChatbot } from '../contexts/ChatbotContext'
 
-function formatTime(date: Date) {
-  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date)
-}
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(date)
-}
+type View = 'week' | 'month'
 
 export default function CalendarPage() {
+  const [cursor, setCursor] = useState(() => startOfWeek(new Date()))
+  const [view, setView] = useState<View>('week')
   const [events, setEvents] = useState<DoseEvent[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { open } = useChatbot()
+
+  const range = useMemo(() => (view === 'week' ? weekRange(cursor) : monthRange(cursor)), [cursor, view])
 
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    fetchWeekDoseEvents().then(
+    fetchRangeDoseEvents(range.start, range.end).then(
       evs => {
         if (!mounted) return
         setEvents(evs)
@@ -36,106 +32,206 @@ export default function CalendarPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [range.start.getTime(), range.end.getTime()])
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, DoseEvent[]>()
+  const dayStatus = useMemo(() => {
+    const map = new Map<string, { taken: number; scheduled: number }>()
     if (!events) return map
     for (const e of events) {
-      const key = new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate()).toISOString()
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(e)
+      const key = isoDay(e.start)
+      if (!map.has(key)) map.set(key, { taken: 0, scheduled: 0 })
+      const v = map.get(key)!
+      v.scheduled += 1
+      if (e.status === 'taken') v.taken += 1
     }
-    for (const [, list] of map) list.sort((a, b) => a.start.getTime() - b.start.getTime())
     return map
   }, [events])
 
-  function updateEvent(id: string, updater: (e: DoseEvent) => DoseEvent) {
-    setEvents(prev => (prev ? prev.map(e => (e.id === id ? updater(e) : e)) : prev))
+  function statusForDay(date: Date) {
+    const key = isoDay(date)
+    const v = dayStatus.get(key)
+    if (!v) return 'none' as const
+    if (v.taken === 0) return 'missed' as const
+    if (v.taken === v.scheduled) return 'taken' as const
+    return 'partial' as const
   }
 
-  function onTake(e: DoseEvent) {
-    updateEvent(e.id, prev => ({ ...prev, status: 'taken' }))
+  function prev() {
+    setCursor(prev => (view === 'week' ? addDays(prev, -7) : addMonths(prev, -1)))
   }
-
-  function onSkip(e: DoseEvent) {
-    updateEvent(e.id, prev => ({ ...prev, status: 'skipped' }))
+  function next() {
+    setCursor(prev => (view === 'week' ? addDays(prev, 7) : addMonths(prev, 1)))
   }
-
-  function onSnooze(e: DoseEvent) {
-    const newStart = new Date(e.start)
-    newStart.setMinutes(newStart.getMinutes() + 10)
-    const newEnd = new Date(e.end)
-    newEnd.setMinutes(newEnd.getMinutes() + 10)
-    updateEvent(e.id, prev => ({ ...prev, start: newStart, end: newEnd, status: 'snoozed' }))
+  function today() {
+    setCursor(startOfWeek(new Date()))
   }
 
   if (loading) return <div>Loading…</div>
   if (error) return <div className="text-red-600">{error}</div>
-  if (!events) return null
-
-  const days = [...grouped.keys()].sort()
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Week</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Adherence</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={today} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs">Today</button>
+          <button onClick={prev} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs">Prev</button>
+          <button onClick={next} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs">Next</button>
+          <div className="ml-2 inline-flex rounded-md border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+            <button onClick={() => setView('week')} className={'px-2.5 py-1.5 text-xs ' + (view === 'week' ? 'bg-zinc-200 dark:bg-zinc-800' : '')}>Week</button>
+            <button onClick={() => setView('month')} className={'px-2.5 py-1.5 text-xs ' + (view === 'month' ? 'bg-zinc-200 dark:bg-zinc-800' : '')}>Month</button>
+          </div>
+        </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        {days.map(dayIso => {
-          const dayDate = new Date(dayIso)
-          const list = grouped.get(dayIso) || []
-          return (
-            <section key={dayIso} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{formatDate(dayDate)}</h3>
-              </div>
-              <ul className="mt-3 space-y-2">
-                {list.map(e => (
-                  <li key={e.id} className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
-                        {e.medication}{e.doseMg ? ` ${e.doseMg} mg` : ''}
-                        {e.status !== 'scheduled' && (
-                          <span className={
-                            'ml-2 rounded-full px-2 py-0.5 text-[10px] border ' +
-                            (e.status === 'taken'
-                              ? 'bg-green-600 text-white border-green-600'
-                              : e.status === 'snoozed'
-                                ? 'bg-amber-500 text-white border-amber-500'
-                                : 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300')
-                          }>
-                            {e.status}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                        {formatTime(e.start)}{e.instructions ? ` • ${e.instructions}` : ''}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => onTake(e)} className="rounded-md bg-blue-600 text-white px-2.5 py-1.5 text-xs hover:bg-blue-500">Take</button>
-                      <button onClick={() => onSnooze(e)} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs">Snooze</button>
-                      <button onClick={() => onSkip(e)} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs">Skip</button>
-                      <button
-                        className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 text-xs"
-                        onClick={() =>
-                          open({
-                            question: `What should I know about ${e.medication} ${e.doseMg ? e.doseMg + ' mg ' : ''}for this dose?`,
-                            context: { medication: e.medication, doseMg: e.doseMg, at: e.start.toISOString() },
-                          })
-                        }
-                      >
-                        Ask
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )
-        })}
+
+      {view === 'week' ? (
+        <WeekView start={range.start} end={range.end} statusForDay={statusForDay} />
+      ) : (
+        <MonthView start={range.start} end={range.end} statusForDay={statusForDay} />
+      )}
+    </div>
+  )
+}
+
+function WeekView({ start, end, statusForDay }: { start: Date; end: Date; statusForDay: (d: Date) => 'taken' | 'partial' | 'missed' | 'none' }) {
+  const days: Date[] = []
+  for (let d = new Date(start); d <= end; d = addDays(d, 1)) days.push(new Date(d))
+  return (
+    <div className="grid grid-cols-7 gap-2">
+      {days.map(d => (
+        <DayCard key={d.toISOString()} date={d} status={statusForDay(d)} />
+      ))}
+    </div>
+  )
+}
+
+function MonthView({ start, end, statusForDay }: { start: Date; end: Date; statusForDay: (d: Date) => 'taken' | 'partial' | 'missed' | 'none' }) {
+  const days: Date[] = []
+  for (let d = new Date(start); d <= end; d = addDays(d, 1)) days.push(new Date(d))
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-sm">
+      <div className="grid grid-cols-7 text-[11px] text-zinc-600 dark:text-zinc-400 mb-2 px-1">
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} className="text-center">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map(d => (
+          <div key={d.toISOString()} className="aspect-square">
+            <DayCell date={d} status={statusForDay(d)} isFaded={d.getMonth() !== start.getMonth()} />
+          </div>
+        ))}
       </div>
     </div>
   )
+}
+
+function DayCard({ date, status }: { date: Date; status: 'taken' | 'partial' | 'missed' | 'none' }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm text-center">
+      <div className="text-sm font-medium">{formatDay(date)}</div>
+      <StatusPill status={status} className="mt-2 inline-block" />
+    </div>
+  )
+}
+
+function DayCell({ date, status, isFaded }: { date: Date; status: 'taken' | 'partial' | 'missed' | 'none'; isFaded?: boolean }) {
+  return (
+    <div className={'rounded-md border text-center p-1 ' + (isFaded ? 'opacity-60 ' : '') + borderFor(status)}>
+      <div className="text-[11px]">{date.getDate()}</div>
+      <StatusDot status={status} className="mx-auto mt-1" />
+    </div>
+  )
+}
+
+function StatusPill({ status, className = '' }: { status: 'taken' | 'partial' | 'missed' | 'none'; className?: string }) {
+  const label = status === 'taken' ? 'All taken' : status === 'partial' ? 'Partial' : status === 'missed' ? 'Missed' : 'No doses'
+  return (
+    <span className={className + ' text-[10px] rounded-full px-2 py-0.5 ' + bgFor(status)}>{label}</span>
+  )
+}
+
+function StatusDot({ status, className = '' }: { status: 'taken' | 'partial' | 'missed' | 'none'; className?: string }) {
+  return <span className={className + ' inline-block h-2.5 w-2.5 rounded-full ' + dotFor(status)} />
+}
+
+function bgFor(status: 'taken' | 'partial' | 'missed' | 'none') {
+  switch (status) {
+    case 'taken':
+      return 'bg-green-600 text-white'
+    case 'partial':
+      return 'bg-amber-500 text-white'
+    case 'missed':
+      return 'bg-rose-600 text-white'
+    default:
+      return 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+  }
+}
+
+function dotFor(status: 'taken' | 'partial' | 'missed' | 'none') {
+  switch (status) {
+    case 'taken':
+      return 'bg-green-600'
+    case 'partial':
+      return 'bg-amber-500'
+    case 'missed':
+      return 'bg-rose-600'
+    default:
+      return 'bg-zinc-400 dark:bg-zinc-600'
+  }
+}
+
+function borderFor(status: 'taken' | 'partial' | 'missed' | 'none') {
+  switch (status) {
+    case 'taken':
+      return 'border-green-600/40 dark:border-green-500/40'
+    case 'partial':
+      return 'border-amber-500/40'
+    case 'missed':
+      return 'border-rose-600/40'
+    default:
+      return 'border-zinc-300 dark:border-zinc-700'
+  }
+}
+
+function startOfWeek(date: Date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = d.getDate() - day
+  const res = new Date(d)
+  res.setDate(diff)
+  res.setHours(0, 0, 0, 0)
+  return res
+}
+function weekRange(cursor: Date) {
+  const start = startOfWeek(cursor)
+  const end = addDays(start, 6)
+  end.setHours(23, 59, 59, 999)
+  return { start, end }
+}
+function monthRange(cursor: Date) {
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
+  const start = startOfWeek(first)
+  const lastOfMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0)
+  const end = addDays(startOfWeek(addDays(lastOfMonth, 1)), 6)
+  end.setHours(23, 59, 59, 999)
+  return { start, end }
+}
+function addDays(date: Date, amount: number) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + amount)
+  return d
+}
+function addMonths(date: Date, amount: number) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + amount)
+  return d
+}
+function isoDay(date: Date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+function formatDay(date: Date) {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(date)
 }

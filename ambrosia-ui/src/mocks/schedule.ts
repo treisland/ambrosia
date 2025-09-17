@@ -21,6 +21,26 @@ export async function fetchWeekDoseEvents(baseDate: Date = new Date()): Promise<
   return events
 }
 
+export async function fetchRangeDoseEvents(start: Date, end: Date): Promise<DoseEvent[]> {
+  const events: DoseEvent[] = []
+  const startDay = new Date(start)
+  startDay.setHours(0, 0, 0, 0)
+  const endDay = new Date(end)
+  endDay.setHours(0, 0, 0, 0)
+
+  for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+    // Metformin 500 mg at 8:00 and 20:00
+    events.push(createEvent(d, 8, 0, 30, 'Metformin', 500, 'with food'))
+    events.push(createEvent(d, 20, 0, 30, 'Metformin', 500, 'with food'))
+
+    // Lisinopril 20 mg at 12:00
+    events.push(createEvent(d, 12, 0, 30, 'Lisinopril', 20))
+  }
+
+  await delay(150)
+  return events
+}
+
 function createEvent(
   day: Date,
   hour: number,
