@@ -1,0 +1,69 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.envrc
+pytest_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+out/
+coverage/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Secrets/keys
+*.pem
+*.key
+*.p8
+*.p12
+*.crt
+*.der
+*.asc
+secrets.*
+*.kubeconfig
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+crash.log
+terraform.tfvars
+terraform.tfvars.json
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.bak
+
