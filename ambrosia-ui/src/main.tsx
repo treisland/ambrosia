@@ -9,17 +9,21 @@ import Add from './pages/Add.tsx'
 import Log from './pages/Log.tsx'
 import Settings from './pages/Settings.tsx'
 import CalendarPage from './pages/Calendar.tsx'
+import NotFound from './pages/NotFound.tsx'
 
 const router = createBrowserRouter([
   {
+    path: '/',
     element: <AppShell />,
+    errorElement: <NotFound />,
     children: [
-      { path: '/', element: <Today /> },
-      { path: '/calendar', element: <CalendarPage /> },
-      { path: '/meds', element: <Meds /> },
-      { path: '/add', element: <Add /> },
-      { path: '/log', element: <Log /> },
-      { path: '/settings', element: <Settings /> },
+      { index: true, element: <Today /> },
+      { path: 'calendar', element: <CalendarPage /> },
+      { path: 'meds', element: <Meds /> },
+      { path: 'add', element: <Add /> },
+      { path: 'log', element: <Log /> },
+      { path: 'settings', element: <Settings /> },
+      { path: '*', element: <NotFound /> },
     ],
   },
 ])
