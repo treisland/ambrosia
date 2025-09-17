@@ -1,31 +1,26 @@
 # Ambrosia UI
 
-Modern React + TypeScript + Vite interface with Tailwind v4. Dark mode is default via `html.dark` class with a user toggle.
+A Vite + React (TypeScript) UI for medication adherence.
 
-## Scripts
+## Development
 
-- `npm run dev` – start dev server
-- `npm run build` – typecheck and build for production
-- `npm run preview` – preview the production build
+- Install dependencies: `npm install`
+- Start dev server: `npm run dev`
+- Build: `npm run build`
+- Preview build: `npm run preview`
 
-## Setup
+## Features
 
-1. Install dependencies:
+- Calendar (Week view): `/calendar` route shows dose events with Take/Snooze/Skip and an Ask button to open the assistant with context.
+- Prescription Assistant: Floating "Ask" button bottom-right opens a panel for prescription Q&A (stubbed with safety disclaimers).
 
-```bash
-npm install
-```
+## Notes
 
-2. Start the dev server:
+- Data is mocked in `src/mocks/schedule.ts`.
+- Types in `src/types/schedule.ts`.
+- Assistant context/provider in `src/contexts/ChatbotContext.tsx` and UI in `src/components/ChatbotWidget.tsx`.
 
-```bash
-npm run dev
-```
+## Safety
 
-Then open the printed local URL.
-
-## Theming
-
-- Default theme is dark. The early script in `index.html` sets `html.dark`.
-- Toggle in the header switches between light/dark and persists to localStorage.
+The assistant is for educational purposes only and not medical advice. For urgent issues, contact a clinician or emergency services.
 
