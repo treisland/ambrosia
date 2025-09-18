@@ -9,6 +9,7 @@ import Add from './pages/Add.tsx'
 import Log from './pages/Log.tsx'
 import Settings from './pages/Settings.tsx'
 import CalendarPage from './pages/Calendar.tsx'
+import PrnMeds from './pages/PrnMeds.tsx'
 import NotFound from './pages/NotFound.tsx'
 
 const router = createBrowserRouter([
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
       { index: true, element: <Today /> },
       { path: 'calendar', element: <CalendarPage /> },
       { path: 'meds', element: <Meds /> },
+      { path: 'prn', element: <PrnMeds /> },
       { path: 'add', element: <Add /> },
       { path: 'log', element: <Log /> },
       { path: 'settings', element: <Settings /> },

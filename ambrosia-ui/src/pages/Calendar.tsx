@@ -1,51 +1,37 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRangeDoseEvents } from '../mocks/schedule'
-import type { DoseEvent } from '../types/schedule'
+import { useDoses } from '../hooks/useDoses'
 
 type View = 'week' | 'month'
 
 export default function CalendarPage() {
   const [cursor, setCursor] = useState(() => startOfWeek(new Date()))
   const [view, setView] = useState<View>('week')
-  const [events, setEvents] = useState<DoseEvent[] | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { doses, loading, error, refresh } = useDoses()
 
   const range = useMemo(() => (view === 'week' ? weekRange(cursor) : monthRange(cursor)), [cursor, view])
 
   useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    fetchRangeDoseEvents(range.start, range.end).then(
-      evs => {
-        if (!mounted) return
-        setEvents(evs)
-        setLoading(false)
-      },
-      err => {
-        console.error(err)
-        if (!mounted) return
-        setError('Failed to load schedule')
-        setLoading(false)
-      }
-    )
-    return () => {
-      mounted = false
-    }
-  }, [range.start.getTime(), range.end.getTime()])
+    refresh()
+  }, [refresh])
 
   const dayStatus = useMemo(() => {
     const map = new Map<string, { taken: number; scheduled: number }>()
-    if (!events) return map
-    for (const e of events) {
-      const key = isoDay(e.start)
+    
+    // Filter doses within the current range
+    const rangeDoses = doses.filter(dose => {
+      const doseDate = new Date(dose.scheduledTime)
+      return doseDate >= range.start && doseDate <= range.end
+    })
+
+    for (const dose of rangeDoses) {
+      const key = isoDay(new Date(dose.scheduledTime))
       if (!map.has(key)) map.set(key, { taken: 0, scheduled: 0 })
       const v = map.get(key)!
       v.scheduled += 1
-      if (e.status === 'taken') v.taken += 1
+      if (dose.status === 'taken') v.taken += 1
     }
     return map
-  }, [events])
+  }, [doses, range])
 
   function statusForDay(date: Date) {
     const key = isoDay(date)
